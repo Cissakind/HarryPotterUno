@@ -23,6 +23,8 @@
 #include <ostream>
 #include <time.h>
 
+#include <random>
+
 #define NUM_PLAYERS 3
 #define DISPLAY_WIDTH 2400
 #define DISPLAY_HEIGHT 1799
