@@ -1,35 +1,82 @@
+# LSP's servem para mostrar erros no código, sugestões, ações de navegação, etc
+# Mudamos o CC para clang++ pois usamos o clangd como LSP, por coerência.
+# Por default, o clangd assume que o arquivo que você está editando será
+# compilado com um comando simples, ex.: `clang++ main.cpp`
+# Isso gera problemas quando seus arquivos incluem cabeçalhos em outros
+# diretórios, quando flags de compilação específicas são usadas, etc.
+# Para acalmar o clangd sobre essas mudanças, instalamos o bear, que cria um
+# arquivo chamado compile_commands.json através deste Makefile, que informa como
+# o projeto será compilado de fato (ao invés do default simples).
+# O clangd sempre procura o compile_commands.json no diretório acima dos
+# arquivos observados, e encontrando um gerado corretamente, para de apontar
+# erros indevidamente. Como o compile_commands.json contém as informações do
+# Makefile, se fizer mudanças neste Makefile e estiver usando o clangd,
+# execute `make clean` e `bear make`, nessa ordem, para gerar/atualizar o
+# compile_commands.json correspondente ao Makefile mais atual.
+
+CC := clang++
+CXX_FLAGS := -g -Wall -O3 -std=c++17
+
+SRCDIR := src
+BUILDDIR := build
+
+TARGET := main
+SRCEXT := cpp
+
+SRC := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
+OBJ := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SRC:.$(SRCEXT)=.o))
+
+INCLUDE := -Iinclude/ -I/usr/include/allegro5/
 LIBS=`pkg-config --cflags --libs allegro-5 allegro_acodec-5 allegro_audio-5 allegro_color-5 allegro_dialog-5 allegro_font-5 allegro_image-5 allegro_main-5 allegro_memfile-5 allegro_physfs-5 allegro_primitives-5 allegro_ttf-5` -lm
-CXX_FLAGS=-std=c++2a -g -O3
-OBJ=main.o Card.o Deck.o UnoPlayer.o UnoGame.o BuildUnoGame.o State.o
 
-INCLUDES=-I/usr/include/allegro5/
+all: $(OBJ) $(TARGET)
 
-all: Card.o Deck.o UnoPlayer.o UnoGame.o BuildUnoGame.o State.o main.o main
+$(TARGET): $(OBJ)
+	g++ $^ $(INCLUDE) $(LIBS) -o $@ $(CXX_FLAGS)
 
-main: $(OBJ)
-	g++ $^ $(LIBS) -o $@ $(CXX_FLAGS)
+$(BUILDDIR)/Card.o: src/Card.cpp include/Card.h
+	g++ -c src/Card.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
 
-Card.o: Card.cpp Card.h
-	g++ -c Card.cpp -o $@ $(LIBS) $(CXX_FLAGS)
+$(BUILDDIR)/Deck.o: src/Deck.cpp include/Deck.h include/Card.h
+	g++ -c src/Deck.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
 
-Deck.o: Deck.cpp Deck.h Card.h
-	g++ -c Deck.cpp -o $@ $(LIBS) $(CXX_FLAGS)
+$(BUILDDIR)/UnoPlayer.o: src/UnoPlayer.cpp include/UnoPlayer.h include/Deck.h
+	g++ -c src/UnoPlayer.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
 
-UnoPlayer.o: UnoPlayer.cpp UnoPlayer.h Deck.h
-	g++ -c UnoPlayer.cpp -o $@ $(LIBS) $(CXX_FLAGS)
+$(BUILDDIR)/UnoGame.o: src/UnoGame.cpp include/UnoGame.h include/UnoPlayer.h include/State.h
+	g++ -c src/UnoGame.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
 
-UnoGame.o: UnoGame.cpp UnoGame.h UnoPlayer.h UnoState.h
-	g++ -c UnoGame.cpp -o $@ $(LIBS) $(CXX_FLAGS)
+$(BUILDDIR)/BuildUnoGame.o: src/BuildUnoGame.cpp include/BuildUnoGame.h include/UnoGame.h include/MenuState.h
+	g++ -c src/BuildUnoGame.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
 
-BuildUnoGame.o: BuildUnoGame.cpp BuildUnoGame.h UnoGame.h
-	g++ -c BuildUnoGame.cpp -o $@ $(LIBS) $(CXX_FLAGS)
+$(BUILDDIR)/State.o: src/State.cpp include/State.h include/UnoGame.h 
+	g++ -c src/State.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
 
-State.o: State.cpp State.h UnoPlayer.h 
-	g++ -c State.cpp -o $@ $(LIBS) $(CXX_FLAGS)
+$(BUILDDIR)/StartingUno.o: src/StartingUno.cpp include/StartingUno.h include/State.h include/StartingPlay.h include/EndingGame.h 
+	g++ -c src/StartingUno.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
 
-main.o: main.cpp BuildUnoGame.h UnoGame.h UnoState.h UnoPlayer.h
-	g++ -c main.cpp -o $@ $(LIBS) $(CXX_FLAGS)
+$(BUILDDIR)/StartingPlay.o: src/StartingPlay.cpp include/StartingPlay.h include/State.h include/EndingPlay.h
+	g++ -c src/StartingPlay.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
 
+$(BUILDDIR)/StartingBotPlay.o: src/StartingBotPlay.cpp include/StartingBotPlay.h include/State.h include/EndingPlay.h
+	g++ -c src/StartingBotPlay.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
+
+$(BUILDDIR)/EndingPlay.o: src/EndingPlay.cpp include/EndingPlay.h include/State.h include/StartingPlay.h
+	g++ -c src/EndingPlay.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
+
+$(BUILDDIR)/EndingGame.o: src/EndingGame.cpp include/EndingGame.h include/State.h include/GameOver.h 
+	g++ -c src/EndingGame.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
+
+$(BUILDDIR)/GameOver.o: src/GameOver.cpp include/GameOver.h include/State.h include/EndingGame.h 
+	g++ -c src/GameOver.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
+
+$(BUILDDIR)/MenuState.o: src/MenuState.cpp include/MenuState.h include/State.h include/EndingGame.h 
+	g++ -c src/MenuState.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
+
+$(BUILDDIR)/main.o: src/main.cpp include/BuildUnoGame.h include/EndingGame.h
+	g++ -c src/main.cpp -o $@ $(INCLUDE) $(LIBS) $(CXX_FLAGS)
 
 clean:
-	rm *.o main
+	$(RM) -r $(BUILDDIR)/* $(TARGET)
+
+.PHONY: clean
